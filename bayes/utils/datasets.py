@@ -65,11 +65,11 @@ def set_seed(seed: int = 42) -> None:
 
 
 def load_dataset(dataset_name, dataset_type="Planetoid"):
-    dataset_dir = os.path.join(f"../datasets/{dataset_type}", dataset_name)
+    dataset_dir = os.path.join(f"../../datasets/{dataset_type}", dataset_name)
     dataset_path = os.path.join(os.getcwd(), dataset_dir)
     total_nodes = 0
-    if not os.path.exists(os.path.join(os.getcwd(), f"../datasets/{dataset_type}")):
-        os.makedirs(os.path.join(os.getcwd(), f"../datasets/{dataset_type}"))
+    if not os.path.exists(os.path.join(os.getcwd(), f"../../datasets/{dataset_type}")):
+        os.makedirs(os.path.join(os.getcwd(), f"../../datasets/{dataset_type}"))
 
     if dataset_type == "PygNodePropPredDataset":
         assert dataset_name in ["ogbn-arxiv", "ogbn-proteins"]

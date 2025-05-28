@@ -7,12 +7,14 @@ from torch_geometric.utils import add_self_loops, to_dense_adj, to_undirected
 from torch.utils.tensorboard import SummaryWriter
 from torchmetrics import CalibrationError 
 
-from utils import load_dataset
-from metrics import brier_score
 
+from ..utils.datasets import load_dataset
+from ..utils.metrics import brier_score
+from ..utils.metrics_tracker import MetricsTracker
 
-from ivon import IVON
-from model.network import Net
+from ..model.network import Net
+from .ivon import IVON
+
 
 
 class ModelTrainer:
@@ -54,7 +56,7 @@ class ModelTrainer:
     def setup_tensorboard(self):
 
         log_dir = (
-            f"ablation_proper/Dataset_type: {self.dataset_type}/"
+            f"../../tensorboard/optimizers/Dataset_type: {self.dataset_type}/"
             f"Dataset_name: {self.dataset_name}/"
             f"Model: {self.layer_type}/"
             f"Optimizer: {self.optimizer_type}/" 
@@ -172,7 +174,7 @@ class ModelTrainer:
             train_loss = self._train(self.data, self.edge_index)
             train_acc, val_acc, test_acc, ece, brier, entropy, nll = self._evaluate(self.data, self.edge_index)
 
-            print(f"step: loss {train_loss}")
+            #print(f"step: loss {train_loss}")
             self.writer.add_scalar("Training loss", train_loss, epoch)
             self.writer.add_scalar("Training accuracy", train_acc, epoch)
             self.writer.add_scalar("Validation accuracy", val_acc, epoch)

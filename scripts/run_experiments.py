@@ -3,7 +3,7 @@ import json
 import argparse
 
 
-from trainer import ModelTrainer
+from bayes.training.trainer import ModelTrainer
 
 
 def get_available_configs(directory):
@@ -30,7 +30,7 @@ if __name__ == "__main__":
         type=str,
         default="model_params",
         help="Name of the configuration to load as a dictionary. "
-        "Available options:\n" + "\n".join(get_available_configs("configs/")),
+        "Available options:\n" + "\n".join(get_available_configs("../configs/")),
     )
     parser.add_argument(
         "--num_seeds", type=int, default=5, help="The number of seeds to be executed"
@@ -39,7 +39,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.config != "model_params":
         try:
-            with open(f"configs/{args.config.lower()}.json", "r") as file:
+            with open(f"../configs/{args.config.lower()}.json", "r") as file:
                 config = json.load(file)
 
                 trainer = ModelTrainer(config)
