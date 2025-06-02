@@ -1,0 +1,22 @@
+wandb_version: 1
+
+dataset_name:
+  value: CiteSeer
+dataset_type:
+  value: Planetoid
+epochs:
+  value: 100
+hidden_features:
+  value: 256
+layer_type:
+  value: SGConv
+lr_model:
+  value: 0.0001
+num_layers:
+  value: 5
+optimizer_type:
+  value: adam
+task:
+  value: node_classification
+weight_decay:
+  value: 0.001

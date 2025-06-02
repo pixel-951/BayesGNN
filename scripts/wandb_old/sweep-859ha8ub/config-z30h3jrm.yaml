@@ -1,0 +1,22 @@
+wandb_version: 1
+
+dataset_name:
+  value: PubMed
+dataset_type:
+  value: Planetoid
+epochs:
+  value: 800
+hidden_features:
+  value: 64
+layer_type:
+  value: GATConv
+lr_model:
+  value: 0.1
+num_layers:
+  value: 4
+optimizer_type:
+  value: ivon
+task:
+  value: node_classification
+weight_decay:
+  value: 0.01

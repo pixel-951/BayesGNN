@@ -1,15 +1,18 @@
 from tqdm import tqdm
+import os
 import torch
 import torch.nn.functional as F
 from ogb.nodeproppred import Evaluator
 from torch_geometric.loader import NeighborLoader
 from torch_geometric.utils import add_self_loops, to_dense_adj, to_undirected
-from torch.utils.tensorboard import SummaryWriter
+from torch.optim.lr_scheduler import LRScheduler, ReduceLROnPlateau, ExponentialLR, CosineAnnealingLR, LambdaLR, LinearLR, SequentialLR
 from torchmetrics import CalibrationError 
+
+import wandb
 
 
 from ..utils.datasets import load_dataset
-from ..utils.metrics import brier_score
+from ..utils.metrics import brier_score, brier_over_under, expected_calibration_error
 from ..utils.metrics_tracker import MetricsTracker
 
 from ..model.network import Net
@@ -20,28 +23,47 @@ from .ivon import IVON
 class ModelTrainer:
 
     def __init__(self, config):
-        self.config = config
 
-        self.epochs = config["epochs"]
-        self.lr = config["lr_model"]
-        self.weight_decay = config["weight_decay"]
-        self.optimizer_type = config["optimizer_type"]
-        self.experiment_number = config["experiment_number"]
+        self._raw_config = config
+
+        wandb.init(
+            project="optimizer-ablation",
+            dir="../../wandb_logs",
+            config=config
+        )
+
+        print(f"config: {config}")
+
+        self.config = wandb.config
+
+        self.epochs = self.config["epochs"]
+        self.lr = self.config["lr_model"]
+        self.weight_decay = self.config["weight_decay"]
+        self.optimizer_type = self.config["optimizer_type"]
+        self.lr_scheduling = False
+        if "lr_scheduler" in self.config: 
+            self.lr_scheduling = True
+        
+        #self.experiment_number = self.config["experiment_number"]
 
         if self.optimizer_type == "ivon":
-            self.train_samples = config["train_samples"]
-            self.test_samples = config["test_samples"]
+            self.train_samples = self.config.get("train_samples", 1)
+            self.test_samples = self.config.get("test_samples", 20)
+            self.ess = self.config.get("ess", 1.0)
+            self.hess_init = self.config.get("hess_init", 1.0)
+            self.hess_approx = self.config.get("hess_approx", "price")
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        self.dataset_name = config["dataset_name"]
-        self.dataset_type = config["dataset_type"]
+        self.dataset_name = self.config["dataset_name"]
+        self.dataset_type = self.config["dataset_type"]
 
-        self.hidden_features = config["hidden_features"]
-        self.layer_type = config["layer_type"]
-        self.num_layers = config["num_layers"]
+        self.hidden_features = self.config["hidden_features"]
+        self.layer_type = self.config["layer_type"]
+        self.num_layers = self.config["num_layers"]
 
         self.batch_train = False
+        self.max_val_acc = 0
 
         
 
@@ -51,26 +73,8 @@ class ModelTrainer:
         self.test_ece = CalibrationError(task="multiclass", n_bins=10, num_classes=self.num_classes)
 
         self.setup_model()
-        self.setup_tensorboard()
 
-    def setup_tensorboard(self):
 
-        log_dir = (
-            f"../../tensorboard/optimizers/Dataset_type: {self.dataset_type}/"
-            f"Dataset_name: {self.dataset_name}/"
-            f"Model: {self.layer_type}/"
-            f"Optimizer: {self.optimizer_type}/" 
-            f"N_Layers: {self.num_layers}/"
-            f"lr: {self.lr}/"
-            f"wd: {self.weight_decay}/"
-            f"exp: {self.experiment_number}/ "
-            + (f"test_samples: {self.test_samples}/train_samples: {self.train_samples}/" 
-            if self.optimizer_type == "ivon" else "")
-        )
-
-        self.writer = SummaryWriter(log_dir)
-
-        #print(f"opti {self.optimizer_type}")
 
     def load_dataset(self) -> None:
 
@@ -130,10 +134,13 @@ class ModelTrainer:
                 weight_decay=self.weight_decay,
             )
         else:
-            print(self.data)
+            # TODO add lr sheduling
             self.optimizer = IVON(
-                self.model.parameters(), lr=self.lr, ess=self.num_samples
+                self.model.parameters(), lr=self.lr, ess=self.num_samples*self.ess, hess_init=self.hess_init, hess_approx=self.hess_approx
             )
+            if self.lr_scheduling: 
+                #self.scheduler = CosineAnnealingLR(self.optimizer, T_max=self.epochs, eta_min=1e-5)
+                self.scheduler = self.get_ivon_scheduler(self.optimizer, self.epochs)
 
     def train(self) -> None:
 
@@ -172,17 +179,41 @@ class ModelTrainer:
                 test_acc, test_loss = self._test(data)"""
 
             train_loss = self._train(self.data, self.edge_index)
-            train_acc, val_acc, test_acc, ece, brier, entropy, nll = self._evaluate(self.data, self.edge_index)
+            train_acc, val_acc, test_acc, ece, over_ece, under_ece, brier, entropy, nll = self._evaluate(self.data, self.edge_index)
+            
+            # TODO implement early stopping here
+            self.max_val_acc = max(self.max_val_acc, val_acc)
 
-            #print(f"step: loss {train_loss}")
-            self.writer.add_scalar("Training loss", train_loss, epoch)
-            self.writer.add_scalar("Training accuracy", train_acc, epoch)
-            self.writer.add_scalar("Validation accuracy", val_acc, epoch)
-            self.writer.add_scalar("Test accuracy", test_acc, epoch)
-            self.writer.add_scalar("Test ECE", ece, epoch)
-            self.writer.add_scalar("Brier Score", brier, epoch)
-            self.writer.add_scalar("Mean entropy", entropy, epoch)
-            self.writer.add_scalar("NLL", nll, epoch)
+            log = {
+                # Accuracy metrics
+                "train/accuracy": train_acc,
+                "val/accuracy": val_acc,
+                "test/accuracy": test_acc,
+                
+                # Calibration metrics
+                "test/ece": ece,
+                "test/ece_over": over_ece,
+                "test/ece_under": under_ece,
+                "test/brier_score": brier,
+                "test/entropy": entropy,
+                "test/nll": nll,
+                
+                # Training metrics
+                "train/loss": train_loss,
+                "max_val_acc": self.max_val_acc
+                
+            }
+            if self.lr_scheduling: 
+                self.scheduler.step()
+                log.update({
+                    #"mean": self.optimizer.param_avg, 
+                    #"variance": self.optimizer.noise
+                    "lr_sched": self.scheduler.get_last_lr()[0]
+                })
+                print(self.scheduler.get_last_lr()[0], self.scheduler.get_lr()[0])
+            wandb.log(log, step=epoch)
+
+        wandb.finish()
 
     def _train(self, data, edge_index):
         self.model.train()
@@ -229,9 +260,10 @@ class ModelTrainer:
             pred = sm.argmax(dim=1)
             log_probs = F.log_softmax(logit, dim=1)
 
-        ece = self.test_ece(sm[data.test_mask], data.y[data.test_mask])
+        #ece = self.test_ece(sm[data.test_mask], data.y[data.test_mask])
         brier = brier_score(sm[data.test_mask], data.y[data.test_mask])
-
+        #b_over, b_under = brier_over_under(sm[data.test_mask], data.y[data.test_mask])
+        ece, upper_ece, under_ece = expected_calibration_error(sm[data.test_mask], data.y[data.test_mask])
         entropy = -(sm * torch.log(sm + 1e-12)).sum(dim=1)
         mean_entropy = entropy[data.test_mask].mean().item()
 
@@ -241,7 +273,7 @@ class ModelTrainer:
         val_acc = (pred[data.val_mask] == data.y[data.val_mask]).float().mean()
         test_acc = (pred[data.test_mask] == data.y[data.test_mask]).float().mean()
 
-        return train_acc.item(), val_acc.item(), test_acc.item(), ece, brier, mean_entropy, nll
+        return train_acc.item(), val_acc.item(), test_acc.item(), ece, upper_ece, under_ece, brier, mean_entropy, nll
 
 
 
@@ -286,6 +318,30 @@ class ModelTrainer:
         )
 
         return train_acc, train_loss
+
+
+
+
+
+    def get_ivon_scheduler(self, optimizer, total_epochs, warmup_epochs=400):
+        
+        linear = LinearLR(optimizer, start_factor=1.0, end_factor=0.1, total_iters=warmup_epochs)
+        cosine = CosineAnnealingLR(optimizer, T_max=total_epochs) #-warm_epochs
+        
+        #scheduler = SequentialLR(optimizer, [linear, cosine])
+        return cosine
+
+
+
+
+
+
+
+
+
+
+
+
 
     @torch.no_grad()
     def test_ogb(self, edge_index, data, evaluator):

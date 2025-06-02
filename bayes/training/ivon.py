@@ -123,6 +123,8 @@ class IVON(torch.optim.Optimizer):
     def sampled_params(self, train: bool = False):
         param_avg, noise = self._sample_params()
         #print(param_avg, noise)
+        """self.param_avg = param_avg.mean()
+        self.noise = noise.mean()"""
         yield
         self._restore_param_average(train, param_avg, noise)
 

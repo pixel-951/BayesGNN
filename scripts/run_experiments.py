@@ -23,6 +23,15 @@ def get_available_configs(directory):
     return config_files
 
 
+def setup(config):
+
+    tensorboard_dir = os.path.abspath(os.path.join(os.getcwd(), "../tensorboard/optimizers/"))
+    config["tensorboard_dir"] = tensorboard_dir
+    trainer = ModelTrainer(config)
+    trainer.train()
+
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process config files in executing.")
     parser.add_argument(
@@ -39,11 +48,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.config != "model_params":
         try:
-            with open(f"../configs/{args.config.lower()}.json", "r") as file:
+            with open(f"../configs/training/{args.config.lower()}.json", "r") as file:
                 config = json.load(file)
-
-                trainer = ModelTrainer(config)
-                trainer.train()
+                setup(config)
+                
 
         except FileNotFoundError:
             print(f"Error: File {args.config.lower()}.json not found.")

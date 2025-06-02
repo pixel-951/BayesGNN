@@ -1,0 +1,36 @@
+program: hyperparam_search_wandb.py
+method: grid
+metric:
+  name: max_val_acc
+  goal: maximize
+parameters:
+  epochs:
+    value: 800
+  task:
+    value: node_classification
+  optimizer_type:
+    value: ivon
+  dataset_type:
+    value: Planetoid
+  dataset_name:
+    value: Cora
+  layer_type:
+    values: [ "GATConv", "GCNConv"]
+  lr_model:
+    values: [0.1, 0.125]
+  weight_decay:
+    values: [0.0001, 0.001, 0.01] 
+  hidden_features:
+    values: [64, 128, 256]
+  num_layers:
+    values: [2, 3, 4] 
+  ess:
+    values: [0.1, 0.5, 1.0]  
+  hess_init:
+    values: [0.1, 1.0, 10.0] 
+  train_samples: 
+    values: [1, 10] 
+  test_samples: 
+    values: [1, 10, 20]
+  hess_approx:
+    values: ["price", "gradsq"] 

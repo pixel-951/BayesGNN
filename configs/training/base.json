@@ -1,0 +1,15 @@
+{
+    "experiment_number": 8,
+    "epochs": 800,
+    "lr_model": 0.1,
+    "weight_decay": 0.001,
+    "hidden_features": 280,
+    "num_layers": 4,
+    "optimizer_type": "ivon",
+    "train_samples": 1,
+    "test_samples": 20,
+    "dataset_type": "Planetoid",
+    "dataset_name": "CiteSeer",
+    "task": "node_classification",
+    "layer_type": "GATConv"
+}

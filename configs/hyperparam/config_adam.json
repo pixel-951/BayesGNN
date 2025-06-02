@@ -1,0 +1,37 @@
+{
+    "base_config": {
+        "epochs": 800,
+        "optimizer_type": "adam",
+        "dataset_type": "Planetoid",
+        "dataset_name": "Cora",
+        "task": "node_classification",
+        "layer_type": "GCN"
+    },
+    "searchspace": {
+        "lr_model": {
+            "type": "float",
+            "low": 1e-4,
+            "high": 0.1,
+            "log": true
+        },
+        "weight_decay": {
+            "type": "float",
+            "low": 1e-6,
+            "high": 1e-2,
+            "log": true
+        },
+        "hidden_features": {
+            "type": "categorical",
+            "values": [
+                128,
+                256,
+                512
+            ]
+        },
+        "num_layers": {
+            "type": "int",
+            "low": 2,
+            "high": 6
+        }
+    }
+}

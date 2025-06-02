@@ -1,0 +1,53 @@
+{
+  "base_config": {
+    "epochs": 800,
+    "optimizer_type": "ivon",
+    "dataset_type": "Planetoid",
+    "dataset_name": "Cora",
+    "task": "node_classification",
+    "layer_type": "GCN"
+  },
+  "searchspace": {
+    "lr": {
+      "type": "float",
+      "low": 1e-5,
+      "high": 1e-2,
+      "log": true
+    },
+    "hidden_dim": {
+      "type": "categorical",
+      "values": [
+        64,
+        128,
+        256
+      ]
+    },
+    "num_layers": {
+      "type": "int",
+      "low": 2,
+      "high": 4
+    },
+    "ess": {
+      "type": "float",
+      "low": 0.1,
+      "high": 10.0
+    },
+    "hess_init": {
+      "type": "float",
+      "low": 0.1,
+      "high": 10.0
+    },
+    "mc_samples": {
+      "type": "int",
+      "low": 1,
+      "high": 10
+    },
+    "hess_approx": {
+      "type": "categorical",
+      "values": [
+        "price",
+        "gradsq"
+      ]
+    }
+  }
+}
